@@ -38,7 +38,7 @@ commandTemplate ADAFRUIT_REMOTE[] = {{0x02, VOLUME_UP}, {0x00, VOLUME_DOWN},
 {0x14, FOUR}, {0x15, FIVE}, {0x16, SIX}, {0x18, SEVEN},
 {0x19, EIGHT}, {0x1A, NINE}, {0xFF, NO_ACTION}};
 
-//ADAFRUIT_REMOTE
+//CARMP3_REMOTE
 #define CARMP3_ADDRESS 0xFF00
 commandTemplate CARMP3_REMOTE[] = {
    {0x45, CH_MINUS}, {0x46, CH}, {0x47, CH_PLUS}, 
