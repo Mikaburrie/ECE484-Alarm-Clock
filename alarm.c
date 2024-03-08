@@ -23,19 +23,15 @@ void setup_speaker()
 	TCCR0A |= _BV(WGM01);
 	// set prescaler to 8
 	TCCR0B |= _BV(CS02);
-
-	// Output on pin 6
-	DDRD |= _BV(DDD6);
 }
 
 void set_frequency(uint16_t f) {
-	OCR0A = (uint16_t)(31100) /f;
+	if (f == 0) DDRD &= ~_BV(DDD6);
+	else DDRD |= DDRD |= _BV(DDD6);
+	OCR0A = (uint16_t)(31100)/f;
 }
 
 void display_time(uint32_t hours, uint32_t minutes) {
-	LCD_Clear();
-	LCD_GotoXY(0, 0);
-	LCD_PrintString("Time: ");
 	if (hours < 10) LCD_PrintString("0");
 	LCD_PrintInteger(hours);
 	LCD_PrintString(":");
@@ -55,14 +51,16 @@ int main(void)
 	LCD_Clear();
 	LCD_GotoXY(0, 0);
 	LCD_PrintString("Beesechurger");
-	set_frequency(260);
 
 	uint8_t alarmState = 0;
-	uint16_t alarmTime = 0; // Time in minutes
+	uint8_t alarmStatePrev = 0;
+	uint8_t alarmHours = 0;
+	uint8_t alarmMinutes = 0;
+	uint8_t alarmChanged = 1;
 
 	uint16_t minuteOffset = 0;
-	uint32_t clockHours = 0;
-	uint32_t clockMinutes = 0;
+	uint32_t clockHours = 1;
+	uint32_t clockMinutes = 1;
 
 	display_time(clockHours, clockMinutes);
 
@@ -71,17 +69,22 @@ int main(void)
 			case PLAY_PAUSE:
 				alarmState = alarmState != 1;
 				break;
-			case VOLUME_DOWN:
+			case PREV:
+				if (minuteOffset == 0) minuteOffset = 24*60;
 				minuteOffset--;
 				break;
-			case VOLUME_UP:
+			case NEXT:
 				minuteOffset++;
 				break;
-			case PREV:
-				alarmTime--;
+			case VOLUME_DOWN:
+				if (alarmMinutes == 0) alarmHours = (alarmHours + 23)%24;
+				alarmMinutes = (alarmMinutes + 59)%60;
+				alarmChanged = 1;
 				break;
-			case NEXT:
-				alarmTime++;
+			case VOLUME_UP:
+				if (alarmMinutes == 59) alarmHours = (alarmHours + 1)%24;
+				alarmMinutes = (alarmMinutes + 1)%60;
+				alarmChanged = 1;
 				break;
 			case ZERO_TEN:
 				//TODO: beesechurger
@@ -93,15 +96,43 @@ int main(void)
 		uint64_t millis = e_100microseconds/10;
 		uint64_t seconds = millis/1000;
 		uint64_t minutes = seconds/60 + minuteOffset;
-		uint64_t hours = minutes/60;
-
-		// Skip display if time doesn't change
+		uint64_t hours = (minutes/60)%24;
 		minutes %= 60;
-		if (minutes == clockMinutes) continue;
 
-		clockMinutes = minutes;
-		clockHours = hours % 24;
-		display_time(clockHours, clockMinutes);
+		// Flip state 2 and 3 every 500ms
+		if (alarmState == 2 && e_100microseconds%10000 > 5000) {
+			alarmState = 3;
+		} else if (alarmState == 3 && e_100microseconds%10000 <= 5000) {
+			alarmState = 2;
+		}
+
+		// Display time if changed
+		if ((minutes != clockMinutes) || (hours != clockHours)) {
+			// Sound alarm if enabled and time matches
+			if (alarmState == 1 && minutes == alarmMinutes && hours == alarmHours) alarmState = 2; 
+			
+			clockMinutes = minutes;
+			clockHours = hours % 24;
+			LCD_GotoXY(0, 0);
+			LCD_PrintString("Clock Time ");
+			display_time(clockHours, clockMinutes);
+		}
+
+		// Display time if changed
+		if (alarmState != alarmStatePrev || alarmChanged) {
+			LCD_GotoXY(0, 1);
+			LCD_PrintString("Alarm ");
+			LCD_PrintString(alarmState > 0 ? "On   " : "Off  ");
+
+			if (alarmState != 3) display_time(alarmHours, alarmMinutes);
+			else LCD_PrintString("     ");
+
+			set_frequency(260*(alarmState == 2));
+			alarmChanged = 0;
+		}
+
+		alarmStatePrev = alarmState;
+
 	};
 
 	return 0;
