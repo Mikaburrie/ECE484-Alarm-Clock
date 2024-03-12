@@ -12,23 +12,22 @@
 /*
  * Sets up PWM timer 0
  */
-void setup_speaker()
+void setup_speaker(uint8_t period)
 {
-	// set compare to 255
-	OCR0A = 255;
+	// Set compare
+	OCR0A = period;
 
-	// reset counter and toggle output on match
+	// Reset counter and toggle output on match
 	TCCR0A |= _BV(COM0A0);
-	// set CTC mode
+	// Set CTC mode
 	TCCR0A |= _BV(WGM01);
-	// set prescaler to 8
+	// Set prescaler to 8
 	TCCR0B |= _BV(CS02);
 }
 
-void set_frequency(uint16_t f) {
-	if (f == 0) DDRD &= ~_BV(DDD6);
-	else DDRD |= DDRD |= _BV(DDD6);
-	OCR0A = (uint16_t)(31100)/f;
+void set_speaker_enabled(uint8_t on) {
+	if (on) DDRD |= _BV(DDD6);
+	else DDRD &= ~_BV(DDD6);
 }
 
 void display_time(uint32_t hours, uint32_t minutes) {
@@ -41,17 +40,19 @@ void display_time(uint32_t hours, uint32_t minutes) {
 
 int main(void)
 {
-	//Setup
-	setup_speaker();
+	// Setup PWM for speaker
+	setup_speaker(120);
 	
+	// Setup IR remote
 	init100usTimer(_16MHZ);
 	initIR(4, CARMP3_ADDRESS, CARMP3_REMOTE);
 
+	// Setup LCD screen
 	LCD_Setup();
 	LCD_Clear();
 	LCD_GotoXY(0, 0);
-	LCD_PrintString("Beesechurger");
 
+	// Define variables
 	uint8_t alarmState = 0;
 	uint8_t alarmStatePrev = 0;
 	uint8_t alarmHours = 0;
@@ -61,10 +62,12 @@ int main(void)
 	uint16_t minuteOffset = 0;
 	uint32_t clockHours = 1;
 	uint32_t clockMinutes = 1;
-
+	
+	// Inital render
 	display_time(clockHours, clockMinutes);
 
 	while (1) {
+		// Handle IR button press
 		switch (getIRCommandRec()) {
 			case PLAY_PAUSE:
 				alarmState = alarmState != 1;
@@ -86,9 +89,6 @@ int main(void)
 				alarmMinutes = (alarmMinutes + 1)%60;
 				alarmChanged = 1;
 				break;
-			case ZERO_TEN:
-				//TODO: beesechurger
-				break;
 			default: break;
 		}
 
@@ -106,7 +106,7 @@ int main(void)
 			alarmState = 2;
 		}
 
-		// Display time if changed
+		// Redisplay clock time if changed
 		if ((minutes != clockMinutes) || (hours != clockHours)) {
 			// Sound alarm if enabled and time matches
 			if (alarmState == 1 && minutes == alarmMinutes && hours == alarmHours) alarmState = 2; 
@@ -118,7 +118,7 @@ int main(void)
 			display_time(clockHours, clockMinutes);
 		}
 
-		// Display time if changed
+		// Redisplay alarm time if changed
 		if (alarmState != alarmStatePrev || alarmChanged) {
 			LCD_GotoXY(0, 1);
 			LCD_PrintString("Alarm ");
@@ -127,7 +127,7 @@ int main(void)
 			if (alarmState != 3) display_time(alarmHours, alarmMinutes);
 			else LCD_PrintString("     ");
 
-			set_frequency(260*(alarmState == 2));
+			set_speaker_enabled(alarmState == 2);
 			alarmChanged = 0;
 		}
 
